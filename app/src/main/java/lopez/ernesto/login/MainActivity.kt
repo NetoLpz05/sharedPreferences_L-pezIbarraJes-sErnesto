@@ -1,6 +1,5 @@
 package lopez.ernesto.login
 
-import android.R
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,36 +8,67 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import lopez.ernesto.login.ui.theme.LoginTheme
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import lopez.ernesto.login.screen.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = PreferenceManager(this)
+        val cartManager = PreferenceManager(this)
+        val videojuego = Videojuegos()
 
         enableEdgeToEdge()
         setContent {
-            var screenState by remember { mutableStateOf(if (prefs.isLoggedIn()) "HOME" else "LOGIN")}
+            var screenState by remember { mutableStateOf(if (prefs.isLoggedIn()) "CATALOGO" else "LOGIN")}
 
-            if (screenState == "LOGIN"){
-                LoginScreen(onLoginClick= {
-                    screenState = "HOME"
-                    prefs.saveLoginStatus(true)
+            var listaCarrito by remember { mutableStateOf(cartManager.obtenerCarrito()) }
+            var productoSeleccionado by remember { mutableStateOf<Producto?>(null) }
 
-                })
-            } else {
-                HomeScreen(onLogoutClick = {
+            when (screenState) {
+                "LOGIN" -> {
+                    LoginScreen(onLoginClick = {
+                        prefs.saveLoginStatus(true)
+                        screenState = "CATALOGO"
+                    })
+                }
 
-                    screenState = "HOME"
-                    prefs.logout()
-                })
+                "CATALOGO" -> {
+                    CatalogoScreen(videojuegos = videojuego,
+                        onProductClick = { producto ->
+                            productoSeleccionado = producto
+                            screenState = "DETALLE"
+                        },
+                        onAddToCart = { producto ->
+                            listaCarrito = listaCarrito + producto
+                            cartManager.guardarCarrito(listaCarrito)
+                        },
+                        onGoToCart = {
+                            screenState = "CARRITO"
+                        }
+                    )
+                }
+
+                "DETALLE" -> {
+                    productoSeleccionado?.let { producto ->
+                        DetalleProductoScreen(
+                            producto = producto, onBackClick = { screenState = "CATALOGO" }, onAddToCart = { p ->
+                                listaCarrito = listaCarrito + p
+                                cartManager.guardarCarrito(listaCarrito)
+                            }
+                        )
+                    }
+                }
+
+                "CARRITO" -> {
+                    CarritoScreen(productos = listaCarrito, onBack = { screenState = "CATALOGO" }
+                    )
+                }
             }
         }
     }
@@ -55,7 +85,7 @@ fun LoginScreen(onLoginClick: () -> Unit) {
         Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Pantalla de Login", style = MaterialTheme.typography.headlineMedium)
+        Text(text = "Login", style = MaterialTheme.typography.headlineMedium)
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -69,21 +99,13 @@ fun LoginScreen(onLoginClick: () -> Unit) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(
-            value = password,
+        OutlinedTextField(value = password,
             {password = it; errorMessage =""},
-            label = {Text("Contraseña")},
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true
-        )
+            label = {Text("Contraseña")}, modifier = Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation(), singleLine = true)
 
         if(errorMessage.isNotEmpty()){
-            Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            Text(text = errorMessage, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -100,22 +122,9 @@ fun LoginScreen(onLoginClick: () -> Unit) {
     }
 }
 
-@Composable
-fun HomeScreen(onLogoutClick: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "Bienvenido al Home!", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = {onLogoutClick()}) {
-            Text("Cerrar Sesión")
-        }
-    }
-}
 
 @Preview(showBackground = true)
 @Composable
 fun ScreenPreview() {
-
+    LoginScreen(onLoginClick = { })
 }
