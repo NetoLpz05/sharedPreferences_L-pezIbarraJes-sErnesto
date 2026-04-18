@@ -13,39 +13,51 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.*
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import lopez.ernesto.login.screen.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val prefs = PreferenceManager(this)
-        val cartManager = PreferenceManager(this)
+
+        val dataStore = DataStoreManager(this)
         val videojuego = Videojuegos()
 
         enableEdgeToEdge()
         setContent {
-            var screenState by remember { mutableStateOf(if (prefs.isLoggedIn()) "CATALOGO" else "LOGIN")}
 
-            var listaCarrito by remember { mutableStateOf(cartManager.obtenerCarrito()) }
+            val isLoggedIn by dataStore.isLoggedInFlow.collectAsState(initial = false)
+            val listaCarrito by dataStore.cartFlow.collectAsState(initial = emptyList())
+
+            var screenState by remember { mutableStateOf("LOGIN") }
             var productoSeleccionado by remember { mutableStateOf<Producto?>(null) }
 
+            LaunchedEffect(isLoggedIn) {
+                screenState = if (isLoggedIn) "CATALOGO" else "LOGIN"
+            }
+
             when (screenState) {
+
                 "LOGIN" -> {
                     LoginScreen(onLoginClick = {
-                        prefs.saveLoginStatus(true)
-                        screenState = "CATALOGO"
+                        lifecycleScope.launch {
+                            dataStore.saveSession("usuario")
+                        }
                     })
                 }
 
                 "CATALOGO" -> {
-                    CatalogoScreen(videojuegos = videojuego,
+                    CatalogoScreen(
+                        videojuegos = videojuego,
                         onProductClick = { producto ->
                             productoSeleccionado = producto
                             screenState = "DETALLE"
                         },
                         onAddToCart = { producto ->
-                            listaCarrito = listaCarrito + producto
-                            cartManager.guardarCarrito(listaCarrito)
+                            lifecycleScope.launch {
+                                dataStore.saveCart(listaCarrito + producto)
+                            }
                         },
                         onGoToCart = {
                             screenState = "CARRITO"
@@ -56,16 +68,21 @@ class MainActivity : ComponentActivity() {
                 "DETALLE" -> {
                     productoSeleccionado?.let { producto ->
                         DetalleProductoScreen(
-                            producto = producto, onBackClick = { screenState = "CATALOGO" }, onAddToCart = { p ->
-                                listaCarrito = listaCarrito + p
-                                cartManager.guardarCarrito(listaCarrito)
+                            producto = producto,
+                            onBackClick = { screenState = "CATALOGO" },
+                            onAddToCart = { p ->
+                                lifecycleScope.launch {
+                                    dataStore.saveCart(listaCarrito + p)
+                                }
                             }
                         )
                     }
                 }
 
                 "CARRITO" -> {
-                    CarritoScreen(productos = listaCarrito, onBack = { screenState = "CATALOGO" }
+                    CarritoScreen(
+                        productos = listaCarrito,
+                        onBack = { screenState = "CATALOGO" }
                     )
                 }
             }
